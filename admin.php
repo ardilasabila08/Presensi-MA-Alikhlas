@@ -359,7 +359,7 @@ $hari_ini = getNamaHari($tanggal);
             <select name="id_kelas" class="form-select" onchange="this.form.submit()">
                 <option value="">-- Pilih Kelas (MTs & MA) --</option>
                 <?php
-                $q_all_kelas = mysqli_query($koneksi, "SELECT * FROM tb_kelas ORDER BY nama_kelas ASC");
+                $q_all_kelas = mysqli_query($koneksi, "SELECT * FROM tb_kelas ORDER BY id_kelas ASC");
                 while($kls = mysqli_fetch_assoc($q_all_kelas)):
                 ?>
                     <option value="<?= $kls['id_kelas']; ?>" <?= ($id_kelas_pilih == $kls['id_kelas']) ? 'selected' : ''; ?>>
@@ -532,7 +532,7 @@ $q_rekap = mysqli_query($koneksi, "
             $query_sql .= " ORDER BY tb_siswa.nama_siswa ASC";
             
             $q_ds = mysqli_query($koneksi, $query_sql);
-            $q_kelas_opt = mysqli_query($koneksi, "SELECT * FROM tb_kelas ORDER BY nama_kelas ASC");
+            $q_kelas_opt = mysqli_query($koneksi, "SELECT * FROM tb_kelas ORDER BY id_kelas ASC");
             ?>
 
             <form method="GET" action="admin.php" class="row g-2 align-items-center mb-4 bg-light p-3 rounded-3">
@@ -606,7 +606,7 @@ $q_rekap = mysqli_query($koneksi, "
                     </thead>
                     <tbody>
                         <?php
-                        $q_kls = mysqli_query($koneksi, "SELECT * FROM tb_kelas ORDER BY nama_kelas ASC");
+                        $q_kls = mysqli_query($koneksi, "SELECT * FROM tb_kelas ORDER BY id_kelas ASC");
                         $no_k = 1;
                         while($kls = mysqli_fetch_assoc($q_kls)) {
                         ?>
