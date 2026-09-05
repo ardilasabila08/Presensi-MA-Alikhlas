@@ -51,6 +51,7 @@ if (isset($_POST['login'])) {
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0b4f30">
     <style>
         body { 
             font-family: 'Plus Jakarta Sans', sans-serif; 
@@ -61,49 +62,6 @@ if (isset($_POST['login'])) {
             align-items: center;
             margin: 0;
             overflow: hidden;
-        }
-
-        /* Splash Screen Ala Vercel */
-        #splash-screen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(135deg, #0b4f30 0%, #042f1c 100%);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            color: white;
-            z-index: 9999;
-            transition: opacity 0.6s ease, visibility 0.6s ease;
-            cursor: pointer;
-            text-align: center;
-            padding: 20px;
-        }
-
-        .splash-icon {
-            font-size: 65px;
-            color: #ffc107;
-            margin-bottom: 15px;
-            animation: pulse-icon 1.5s infinite alternate;
-        }
-
-        @keyframes pulse-icon {
-            0% { transform: scale(1); }
-            100% { transform: scale(1.08); }
-        }
-
-        .splash-title {
-            font-size: 26px;
-            font-weight: 700;
-            margin-bottom: 5px;
-        }
-
-        .splash-subtitle {
-            font-size: 14px;
-            color: rgba(255, 255, 255, 0.7);
         }
 
         /* Penyesuaian Card Login khusus HP */
@@ -156,22 +114,37 @@ if (isset($_POST['login'])) {
             border-radius: 8px;
         }
         .btn-custom:hover {
-            background-color: #059669;
-            color: white;
+        background-color: #059669;
+        color: white;
+    }
+
+    /* Tambahkan ini agar tampilan login di HP mengecil utuh seperti di laptop */
+  @media (max-width: 768px) {
+        /* Mengatur agar latar belakang menyesuaikan layar penuh */
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 15px;
         }
+        /* Mengunci ukuran kotak login agar pas dan berada tepat di tengah HP */
+        .login-card {
+            width: 100% !important;
+            max-width: 400px !important;
+            margin: 0 auto !important;
+        }
+    }
     </style>
+    <!-- Tambahkan kode ini di sini -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js');
+      }
+    </script>
 </head>
 <body>
-
-    <!-- SPLASH SCREEN -->
-    <div id="splash-screen" onclick="openApp()">
-        <div class="splash-icon">
-            <i class="bi bi-mortarboard-fill"></i>
-        </div>
-        <div class="splash-title">MA Al-Ikhlas Cicalengka</div>
-        <div class="splash-subtitle">Sistem Kehadiran Siswa Digital</div>
-        <div class="small text-white-50 mt-4">Ketuk untuk masuk...</div>
-    </div>
 
     <!-- KARTU LOGIN ASLI -->
     <div class="card login-card">
@@ -208,26 +181,27 @@ if (isset($_POST['login'])) {
                     </div>
                 </div>
 
-                <button type="submit" name="login" class="btn btn-custom w-100 shadow-sm">
+                <button type="submit" name="login" class="btn btn-custom w-100 shadow-sm mb-3">
                     Masuk Sistem <i class="bi bi-arrow-right ms-1"></i>
                 </button>
+
+                <!-- Tambahan Teks Bantuan Lupa Password ke WhatsApp Admin -->
+                <div class="text-center">
+                    <p class="text-muted small mb-0">
+                        Lupa password akun? 
+                        <a href="https://wa.me/6281572517170?text=Halo%20Admin,%20saya%20lupa%20password%20akun%20presensi%20saya.%20Mohon%20bantuannya%20untuk%20reset." 
+   target="_blank" 
+   class="text-success fw-bold text-decoration-none">
+    <i class="bi bi-whatsapp"></i> Hubungi Admin
+                        </a>
+                    </p>
+                </div>
             </form>
         </div>
     </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-    // Fungsi Transisi Splash Screen
-    function openApp() {
-        const splash = document.getElementById('splash-screen');
-        splash.style.opacity = '0';
-        setTimeout(() => {
-            splash.style.display = 'none';
-        }, 600);
-    }
-
-    setTimeout(openApp, 2000);
-
     // Skrip Tombol Mata (Show/Hide Password) Asli Anda
     const togglePassword = document.getElementById('togglePassword');
     const passwordInput = document.getElementById('passwordInput');
