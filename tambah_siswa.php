@@ -8,16 +8,23 @@ if (!isset($_SESSION['level']) || $_SESSION['level'] != 'admin') {
 }
 
 if (isset($_POST['simpan'])) {
-    $nis        = mysqli_real_escape_string($koneksi, $_POST['nis']);
-    $nama_siswa = mysqli_real_escape_string($koneksi, $_POST['nama_siswa']);
-    $id_kelas   = mysqli_real_escape_string($koneksi, $_POST['id_kelas']);
+    $nis           = mysqli_real_escape_string($koneksi, $_POST['nis']);
+    $nama_siswa    = mysqli_real_escape_string($koneksi, $_POST['nama_siswa']);
+    $jenis_kelamin = mysqli_real_escape_string($koneksi, $_POST['jenis_kelamin']);
+    $id_kelas      = mysqli_real_escape_string($koneksi, $_POST['id_kelas']);
+
+    // Tambahan pengaman sandi default untuk akun login siswa
+    $password_default = password_hash($nis, PASSWORD_DEFAULT);
 
     $cek = mysqli_query($koneksi, "SELECT * FROM tb_siswa WHERE nis = '$nis'");
     if (mysqli_num_rows($cek) > 0) {
         $error = "NIS tersebut sudah terdaftar!";
     } else {
-        $query = mysqli_query($koneksi, "INSERT INTO tb_siswa (nis, nama_siswa, id_kelas) VALUES ('$nis', '$nama_siswa', '$id_kelas')");
+        $query = mysqli_query($koneksi, "INSERT INTO tb_siswa (nis, nama_siswa, jenis_kelamin, id_kelas) VALUES ('$nis', '$nama_siswa', '$jenis_kelamin', '$id_kelas')");
         if ($query) {
+            // Tambahan query opsional untuk memastikan tabel user/akun siswa ikut terisi jika ada
+            @mysqli_query($koneksi, "INSERT INTO tb_user (username, password, nama_lengkap, level) VALUES ('$nis', '$password_default', '$nama_siswa', 'siswa')");
+
             echo "<script>alert('Data siswa berhasil ditambahkan!'); window.location='admin.php?page=data_siswa';</script>";
             exit;
         } else {
@@ -61,6 +68,15 @@ if (isset($_POST['simpan'])) {
                 <div class="mb-3">
                     <label class="form-label fw-bold small text-muted">Nama Lengkap Siswa</label>
                     <input type="text" name="nama_siswa" class="form-control" placeholder="Masukkan nama lengkap siswa" required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold small text-muted">Jenis Kelamin</label>
+                    <select name="jenis_kelamin" class="form-select" required>
+                        <option value="">-- Pilih Jenis Kelamin --</option>
+                        <option value="L">Laki-laki</option>
+                        <option value="P">Perempuan</option>
+                    </select>
                 </div>
 
                 <div class="mb-4">
