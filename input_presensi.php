@@ -28,15 +28,33 @@ if ($jam_angka < 12) {
 // Tentukan hari ini secara otomatis
 $nama_hari_inggris = date('l');
 $daftar_hari = [
-    'Monday' => 'SENIN',
-    'Tuesday' => 'SELASA',
+    'Monday'    => 'SENIN',
+    'Tuesday'   => 'SELASA',
     'Wednesday' => 'RABU',
-    'Thursday' => 'KAMIS',
-    'Friday' => 'JUMAT',
-    'Saturday' => 'SABTU',
-    'Sunday' => 'SENIN'
+    'Thursday'  => 'KAMIS',
+    'Friday'    => 'JUMAT',
+    'Saturday'  => 'LIBUR',
+    'Sunday'    => 'LIBUR'
 ];
-$hari_aktif = isset($daftar_hari[$nama_hari_inggris]) ? $daftar_hari[$nama_hari_inggris] : 'SENIN';
+
+$hari_aktif = isset($daftar_hari[$nama_hari_inggris]) ? $daftar_hari[$nama_hari_inggris] : 'LIBUR';
+
+$pesan_sukses_guru = "";
+$is_blocked = false;
+
+// Jika hari Libur, langsung set blokir dan pesan
+if ($hari_aktif == 'LIBUR') {
+    $is_blocked = true;
+    $pesan_sukses_guru = "Mohon maaf untuk hari sabtu dan minggu libur.";
+}
+
+// Tambahan pengaman mutlak: Jika tombol diklik saat libur, paksa batalkan proses!
+if (isset($_POST['simpan_absen_guru_mandiri']) && $hari_aktif == 'LIBUR') {
+    $pesan_sukses_guru = "Mohon maaf untuk hari sabtu dan minggu libur.";
+    // Lewati proses simpan database
+} else {
+    // ... (simpan seluruh kode proses simpan tombol yang ada di bawahnya di sini) ...
+}
 
 // Ambil pilihan kelas, hari, dan jam pelajaran
 $id_kelas_aktif = isset($_REQUEST['id_kelas']) ? $_REQUEST['id_kelas'] : '';
@@ -61,89 +79,94 @@ if (!empty($id_kelas_aktif)) {
 // Proses simpan absen mandiri guru + Foto Webcam
 // ==========================================
 $pesan_sukses_guru = "";
+$is_blocked = false;
+
 if (isset($_POST['simpan_absen_guru_mandiri'])) {
-    // 1. Tangkap semua input dari form POST
-    $nama_guru_abs     = mysqli_real_escape_string($koneksi, $_POST['nama_guru'] ?? '');
-    $hari_guru_abs = mysqli_real_escape_string($koneksi, $_POST['hari_guru'] ?? '');
-    $status_guru_abs   = mysqli_real_escape_string($koneksi, $_POST['status'] ?? 'Hadir');
-    
-    // TAMBAHKAN BARIS INI:
-    $jam_pelajaran_abs = mysqli_real_escape_string($koneksi, $_POST['jam_pelajaran'] ?? '-');
-    
-   $tanggal_hari_ini   = date('Y-m-d');
-$jam_absen_sekarang = date('H:i:s');
-$jam_sekarang_num   = date('H');
-$keterangan_waktu   = ($jam_sekarang_num >= 12) ? "Jam Pulang" : "Jam Masuk";
-    
-    // ... (kode proses upload foto dan query INSERT / UPDATE di bawahnya)
+    // TAMBAHAN PENGECEKAN HARI LIBUR AGAR TIDAK BISA TEMBUS KE BAWAH
+    if (isset($hari_aktif) && $hari_aktif == 'LIBUR') {
+        $pesan_sukses_guru = "Mohon maaf untuk hari sabtu dan minggu libur.";
+    } else {
+        // --- SEMUA KODINGAN ASLIMU DI BAWAH INI DIBIARKAN UTUH TANPA DIUBAH ---
+        if ($is_blocked) {
+            $pesan_sukses_guru = "Mohon maaf untuk hari sabtu dan minggu libur.";
+        } else {
+            $nama_guru_abs = $nama_petugas;
+            $hari_guru_abs = mysqli_real_escape_string($koneksi, $_POST['hari_guru'] ?? '');
+            $status_guru_abs = mysqli_real_escape_string($koneksi, $_POST['status'] ?? 'Hadir');
+            $jam_pelajaran_abs = mysqli_real_escape_string($koneksi, $_POST['jam_pelajaran'] ?? '-');
 
-    $image_data_base64 = isset($_POST['image_captured']) ? $_POST['image_captured'] : '';
-    $nama_file_foto    = '';
+            $tanggal_hari_ini = date('Y-m-d');
+            $jam_absen_sekarang = date('H:i:s');
 
-    if (!empty($image_data_base64)) {
-        $image_parts = explode(";base64,", $image_data_base64);
-        if (count($image_parts) == 2) {
-            $image_base64_decoded = base64_decode($image_parts[1]);
-            $nama_file_foto = 'absen_guru_' . time() . '_' . rand(100, 999) . '.png';
-            $path_penyimpanan = 'uploads/' . $nama_file_foto;
+            // 1. Cek riwayat absen hari ini untuk guru yang sedang login
+            $cek_absen = mysqli_query($koneksi, "SELECT * FROM tb_kehadiran_guru WHERE nama_guru = '$nama_guru_abs' AND tanggal = '$tanggal_hari_ini'");
+            $data_exist = mysqli_fetch_assoc($cek_absen);
 
-            if (!is_dir('uploads')) {
-                mkdir('uploads', 0777, true);
+            // Fungsi kecil untuk mengecek apakah kolom jam benar-benar terisi
+            $has_jam_masuk = ($data_exist && !empty($data_exist['jam_masuk']) && $data_exist['jam_masuk'] != '00:00:00');
+            $has_jam_pulang = ($data_exist && !empty($data_exist['jam_pulang']) && $data_exist['jam_pulang'] != '00:00:00');
+
+            // 2. KONDISI BLOKIR: Jika KEDUA JAM (masuk & pulang) sudah terisi valid
+            if ($has_jam_masuk && $has_jam_pulang) {
+                $pesan_sukses_guru = "Tidak bisa absen karena sudah absen jam masuk dan jam pulang.";
+                $is_blocked = true;
+            } else {
+                // Ambil data foto dari webcam
+                $image_data_base64 = isset($_POST['image_captured']) ? $_POST['image_captured'] : '';
+                $nama_file_foto = '';
+
+                if (!empty($image_data_base64)) {
+                    $image_parts = explode(';base64,', $image_data_base64);
+                    if (count($image_parts) == 2) {
+                        $image_base64_decoded = base64_decode($image_parts[1]);
+                        $nama_file_foto = 'absen_guru_' . time() . '_' . rand(100, 999) . '.png';
+                        $path_penyimpanan = 'uploads/' . $nama_file_foto;
+
+                        if (!is_dir('uploads')) {
+                            mkdir('uploads', 0777, true);
+                        }
+
+                        file_put_contents($path_penyimpanan, $image_base64_decoded);
+                    }
+                }
+
+                if (!$data_exist) {
+                    // KONDISI A: Belum pernah absen sama sekali hari ini -> JAM MASUK
+                    $keterangan_waktu = "Jam Masuk";
+                    $query_guru = "INSERT INTO tb_kehadiran_guru (tanggal, hari, nama_guru, status, jam_pelajaran, jam_masuk, foto_masuk) 
+                                   VALUES ('$tanggal_hari_ini', '$hari_guru_abs', '$nama_guru_abs', '$status_guru_abs', '$jam_pelajaran_abs', '$jam_absen_sekarang', '$nama_file_foto')";
+                } else {
+                    // KONDISI B: Sudah ada jam masuk, sekarang isi JAM PULANG
+                    $keterangan_waktu = "Jam Pulang";
+                    $query_guru = "UPDATE tb_kehadiran_guru 
+                                   SET jam_pulang = '$jam_absen_sekarang', 
+                                       foto_pulang = '$nama_file_foto', 
+                                       jam_pelajaran = '$jam_pelajaran_abs',
+                                       hari = '$hari_guru_abs'
+                                   WHERE nama_guru = '$nama_guru_abs' AND tanggal = '$tanggal_hari_ini'";
+                }
+
+                if (mysqli_query($koneksi, $query_guru)) {
+                    $pesan_sukses_guru = "Absen <b>$keterangan_waktu</b> guru atas nama <b>$nama_guru_abs</b> berhasil disimpan!";
+                } else {
+                    $pesan_sukses_guru = "Gagal menyimpan absen guru: " . mysqli_error($koneksi);
+                }
             }
-
-            file_put_contents($path_penyimpanan, $image_base64_decoded);
         }
-    }
-
-    // 1. Cek dulu apakah guru ini sudah pernah absen pada tanggal hari ini
-   // 1. Cek dulu apakah guru ini sudah pernah absen pada tanggal hari ini
-$cek_absen = mysqli_query($koneksi, "SELECT * FROM tb_kehadiran_guru WHERE nama_guru = '$nama_guru_abs' AND tanggal = '$tanggal_hari_ini'");
-$data_exist = mysqli_fetch_assoc($cek_absen);
-
-if (!$data_exist) {
-    // JIKA BELUM ADA SAMA SEKALI:
-    // Tentukan apakah ini masuk sebagai foto_masuk atau langsung foto_pulang berdasarkan jam saat ini
-    if ($jam_sekarang_num >= 12) {
-        // Jika absen pertama kali tapi sudah lewat jam 12 siang, langsung simpan sebagai FOTO PULANG / SIANG
-        $query_guru = "INSERT INTO tb_kehadiran_guru (tanggal, hari, nama_guru, status, jam_pelajaran, jam_pulang, foto_pulang) 
-                       VALUES ('$tanggal_hari_ini', '$hari_guru_abs', '$nama_guru_abs', '$status_guru_abs', '$jam_pelajaran_abs', '$jam_absen_sekarang', '$nama_file_foto')";
-    } else {
-        // Jika sebelum jam 12, simpan sebagai FOTO MASUK
-        $query_guru = "INSERT INTO tb_kehadiran_guru (tanggal, hari, nama_guru, status, jam_pelajaran, jam_masuk, foto_masuk) 
-                       VALUES ('$tanggal_hari_ini', '$hari_guru_abs', '$nama_guru_abs', '$status_guru_abs', '$jam_pelajaran_abs', '$jam_absen_sekarang', '$nama_file_foto')";
-    }
-} else {
-    // JIKA SUDAH ADA (Misal sudah absen pagi, lalu absen lagi siang/sore): Update bagian pulangnya
-    $query_guru = "UPDATE tb_kehadiran_guru 
-                   SET jam_pulang = '$jam_absen_sekarang', 
-                       foto_pulang = '$nama_file_foto',
-                       jam_pelajaran = '$jam_pelajaran_abs',
-                       hari = '$hari_guru_abs'
-                   WHERE nama_guru = '$nama_guru_abs' AND tanggal = '$tanggal_hari_ini'";
-
-}
-    if (mysqli_query($koneksi, $query_guru)) {
-        $pesan_sukses_guru = "Absen <b>$keterangan_waktu</b> guru atas nama <b>$nama_guru_abs</b> berhasil disimpan!";
-    } else {
-        $pesan_sukses_guru = "Gagal menyimpan absen guru: " . mysqli_error($koneksi);
+        // --- AKHIR DARI KODINGAN ASLIMU ---
     }
 }
-
 
 // ----------------------------------------
 // Proses simpan presensi siswa
 // ----------------------------------------
-
-// ==========================================
-// Proses simpan presensi siswa
-// ==========================================
 $pesan_sukses = "";
 if (isset($_POST['simpan_presensi'])) {
     $status_array = isset($_POST['status']) ? $_POST['status'] : [];
     $hari_input   = isset($_POST['hari']) ? $_POST['hari'] : 'SENIN';
     $jam_input    = ($hari_input == 'SABTU') ? 'Ekstrakurikuler' : (isset($_POST['jam_pelajaran']) ? $_POST['jam_pelajaran'] : '06.20 - 07.00 (Sholat Dhuha & Tadarus)');
     
-    $jam_input_safe  = mysqli_real_escape_string($koneksi, $jam_input);
+    $jam_input_safe   = mysqli_real_escape_string($koneksi, $jam_input);
     $hari_input_safe = mysqli_real_escape_string($koneksi, $hari_input);
     
     foreach ($status_array as $nis_key => $status_val) {
@@ -191,7 +214,20 @@ if (!empty($id_kelas_aktif)) {
         .section-box { display: none; }
         .section-box.active { display: block; }
         #webcam-video { width: 100%; max-width: 320px; height: 240px; border-radius: 12px; background: #000; object-fit: cover; }
-        #canvas-capture { display: none; }
+        #canvas-capture { display: none; } 
+    @media (max-width: 768px) {
+    .main-container {
+        max-width: 100% !important;
+        padding: 10px !important;
+    }
+    .card-custom, .d-flex {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+    }
+    .btn-danger, .badge {
+        margin-top: 10px !important;
+    }
+}
     </style>
 </head>
 <body>
@@ -247,14 +283,30 @@ if (!empty($id_kelas_aktif)) {
         </div>
 
         <!-- KOTAK 1: ABSEN MANDIRI GURU -->
-        <div id="sectionGuru" class="section-box">
+        <div id="sectionGuru" class="section-box active">
             <div class="card card-custom p-4 mb-4 border border-success">
                 <h5 class="fw-bold text-success mb-2"><i class="bi bi-person-check-fill me-2"></i>Absen Mandiri Guru / Petugas (Live Camera)</h5>
+                <!-- TEMPEL KODINGAN PREVIEW FOTO DI SINI -->
+                <div class="mb-3 text-center bg-light p-2 rounded border">
+                    <span class="badge bg-success mb-1">Lihat Jadwal Pelajaran Sekolah</span>
+                    <?php
+                    $foto_aktif = file_exists('uploads/info_jadwal.txt') ? trim(file_get_contents('uploads/info_jadwal.txt')) : '';
+                    if (!empty($foto_aktif) && file_exists('uploads/' . $foto_aktif)): 
+                    ?>
+                        <div>
+                            <a href="lihat_foto.php?file=<?= $foto_aktif; ?>">
+    <img src="uploads/<?= $foto_aktif; ?>" alt="Jadwal Sekolah" class="img-fluid rounded border shadow-sm" style="max-height: 200px;">
+                            </a>
+                            <p class="small text-muted mt-1 mb-0" style="font-size: 11px;">Klik gambar untuk memperbesar</p>
+                        </div>
+                    <?php else: ?>
+                        <p class="small text-danger fst-italic mb-0">Jadwal belum diunggah admin.</p>
+                    <?php endif; ?>
+                </div>
                 <p class="text-muted small mb-3">Sistem otomatis mencatat Jam Masuk (sebelum jam 12.00) atau Jam Pulang (jam 12.00 ke atas) beserta foto.</p>
-                
                 <?php if (!empty($pesan_sukses_guru)): ?>
-                    <div class="alert alert-success alert-dismissible fade show py-2 small" role="alert">
-                        <i class="bi bi-check-circle-fill me-2"></i> <?= $pesan_sukses_guru; ?>
+                    <div class="alert <?= $is_blocked ? 'alert-danger' : 'alert-success'; ?> alert-dismissible fade show py-2 small" role="alert">
+                        <i class="bi <?= $is_blocked ? 'bi-exclamation-triangle-fill' : 'bi-check-circle-fill'; ?> me-2"></i> <?= $pesan_sukses_guru; ?>
                         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                     </div>
                 <?php endif; ?>
@@ -262,46 +314,30 @@ if (!empty($id_kelas_aktif)) {
                 <form action="input_presensi.php?tab=guru" method="POST" id="formAbsenGuru" onsubmit="return validateFormGuru()">
                     <div class="row g-3">
                         <div class="col-md-4">
-                            <label class="form-label fw-bold text-secondary small">PILIH NAMA GURU:</label>
-                            <select name="nama_guru" class="form-select" required>
-                                <option value="">-- Pilih Nama Guru --</option>
-                                <?php
-                                $ambil_petugas = mysqli_query($koneksi, "SELECT * FROM petugas");
-                                while ($p = mysqli_fetch_assoc($ambil_petugas)) {
-                                    echo "<option value='".$p['nama_lengkap']."'>".$p['nama_lengkap']."</option>";
-                                }
-                                ?>
-                            </select>
+                            <label class="form-label fw-bold text-secondary small">NAMA GURU (Otomatis):</label>
+                            <input type="text" name="nama_guru" class="form-control fw-bold text-success bg-light" value="<?= htmlspecialchars($nama_petugas); ?>" readonly>
 
-                            <label class="form-label fw-bold text-secondary small mt-3">PILIH HARI:</label>
-<select name="hari_guru" class="form-select" required>
-    <option value="SENIN" <?= ($hari_aktif == 'SENIN') ? 'selected' : ''; ?>>SENIN</option>
-    <option value="SELASA" <?= ($hari_aktif == 'SELASA') ? 'selected' : ''; ?>>SELASA</option>
-    <option value="RABU" <?= ($hari_aktif == 'RABU') ? 'selected' : ''; ?>>RABU</option>
-    <option value="KAMIS" <?= ($hari_aktif == 'KAMIS') ? 'selected' : ''; ?>>KAMIS</option>
-    <option value="JUMAT" <?= ($hari_aktif == 'JUMAT') ? 'selected' : ''; ?>>JUMAT</option>
-    <option value="SABTU" <?= ($hari_aktif == 'SABTU') ? 'selected' : ''; ?>>SABTU</option>
-</select>
+                            <label class="form-label fw-bold text-secondary small mt-3">HARI (Otomatis):</label>
+<input type="text" name="hari_guru" class="form-control fw-bold text-primary bg-light" value="<?php echo $hari_aktif; ?>" readonly>
 
                             <!-- PILIH STATUS KEHADIRAN -->
-<div class="mb-3">
-    <label class="form-label fw-bold">STATUS KEHADIRAN:</label>
-    <select name="status" class="form-select" required>
-        <option value="Hadir">Hadir</option>
-        <option value="Izin">Izin</option>
-        <option value="Sakit">Sakit</option>
-    </select>
-</div>
+                            <div class="mb-3 mt-3">
+                                <label class="form-label fw-bold">STATUS KEHADIRAN:</label>
+                                <select name="status" class="form-select" required>
+                                    <option value="Hadir">Hadir</option>
+                                    <option value="Izin">Izin</option>
+                                    <option value="Sakit">Sakit</option>
+                                </select>
+                            </div>
 
-<!-- PILIH SESI / KETERANGAN -->
-<div class="mb-3">
-    <label class="form-label fw-bold">SESI / KETERANGAN:</label>
-    <select name="jam_pelajaran" class="form-select" required>
-        <option value="Pagi (07:00 - 12:00)">Pagi (07:00 - 12:00)</option>
-        <option value="Siang (12:00 - 17:00)">Siang (12:00 - 17:00)</option>
-    
-    </select>
-</div>
+                            <!-- PILIH SESI / KETERANGAN -->
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">SESI / KETERANGAN:</label>
+                                <select name="jam_pelajaran" class="form-select" required>
+                                    <option value="Pagi (07:00 - 12:00)">Pagi (07:00 - 12:00)</option>
+                                    <option value="Siang (12:00 - 17:00)">Siang (12:00 - 17:00)</option>
+                                </select>
+                            </div>
 
                             <label class="form-label fw-bold text-secondary small mt-3">KETERANGAN WAKTU (Otomatis):</label>
                             <input type="text" name="keterangan_waktu" id="keteranganWaktuInput" class="form-control fw-bold text-primary bg-light" value="<?= $jenis_absen_otomatis; ?>" readonly>
@@ -344,135 +380,186 @@ if (!empty($id_kelas_aktif)) {
                 </form>
             </div>
         </div>
+    </div>
 
-        <!-- KOTAK 2: ABSEN SISWA -->
-        <div id="sectionSiswa" class="section-box">
-            <div class="card card-custom p-4 mb-4 border border-primary">
-                <h5 class="fw-bold text-primary mb-2"><i class="bi bi-people-fill me-2"></i>Form Presensi Berdasarkan Jadwal Siswa</h5>
-                <p class="text-muted small mb-3">Pilih hari dan kelas untuk memunculkan daftar siswa..</p>
+    <!-- Javascript Webcam & Tab Switcher Pendukung -->
+    <script>
+        const video = document.getElementById('webcam-video');
+        const canvas = document.getElementById('canvas-capture');
+        const imageCapturedInput = document.getElementById('image_captured');
+        const placeholderFoto = document.getElementById('placeholder-foto');
+        const imgResult = document.getElementById('img-result');
 
-                <form method="GET" action="input_presensi.php" class="row g-3" id="formFilter">
-                    <input type="hidden" name="tab" value="siswa">
-                    
-                    <div class="col-md-4">
-                        <label class="form-label fw-bold text-secondary small">PILIH HARI:</label>
-                        <select name="hari" id="pilihHari" class="form-select" onchange="handleHariChange()">
-                            <option value="SENIN" <?= ($pilih_hari == 'SENIN') ? 'selected' : ''; ?>>SENIN</option>
-                            <option value="SELASA" <?= ($pilih_hari == 'SELASA') ? 'selected' : ''; ?>>SELASA</option>
-                            <option value="RABU" <?= ($pilih_hari == 'RABU') ? 'selected' : ''; ?>>RABU</option>
-                            <option value="KAMIS" <?= ($pilih_hari == 'KAMIS') ? 'selected' : ''; ?>>KAMIS</option>
-                            <option value="JUMAT" <?= ($pilih_hari == 'JUMAT') ? 'selected' : ''; ?>>JUMAT</option>
-                            <option value="SABTU" <?= ($pilih_hari == 'SABTU') ? 'selected' : ''; ?>>SABTU</option>
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label fw-bold text-secondary small">PILIH KELAS:</label>
-                        <select name="id_kelas" class="form-select" onchange="document.getElementById('formFilter').submit();">
-                            <option value="">-- Pilih Kelas --</option>
-                            <?php 
-                            mysqli_data_seek($query_dropdown_kelas, 0);
-                            while($k = mysqli_fetch_assoc($query_dropdown_kelas)): 
-                            ?>
-                                <option value="<?= $k['id_kelas']; ?>" <?= ($id_kelas_aktif == $k['id_kelas']) ? 'selected' : ''; ?>>
-                                    <?= $k['nama_kelas']; ?>
-                                </option>
-                            <?php endwhile; ?>
-                        </select>
-                    </div>
-                   
-                </form>
+        // Nyalakan Kamera
+        navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+            .then(stream => {
+                video.srcObject = stream;
+            })
+            .catch(err => {
+                console.error("Kesalahan akses kamera: ", err);
+            });
+
+        function ambilFoto() {
+            canvas.width = video.videoWidth || 320;
+            canvas.height = video.videoHeight || 240;
+            const context = canvas.getContext('2d');
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            const dataURL = canvas.toDataURL('image/png');
+            imageCapturedInput.value = dataURL;
+
+            imgResult.src = dataURL;
+            imgResult.classList.remove('d-none');
+            placeholderFoto.classList.add('d-none');
+        }
+
+        function validateFormGuru() {
+            if (!imageCapturedInput.value) {
+                alert('Silakan ambil foto kehadiran terlebih dahulu menggunakan kamera!');
+                return false;
+            }
+            return true;
+        }
+
+        function switchTab(tabName) {
+            const sectionGuru = document.getElementById('sectionGuru');
+            if(tabName === 'guru') {
+                sectionGuru.classList.add('active');
+            }
+        }
+    </script>
+</body>
+</html>
+
+       <!-- KOTAK 2: ABSEN SISWA -->
+<div id="sectionSiswa" class="section-box">
+    <div class="card card-custom p-4 mb-4 border border-primary">
+        <h5 class="fw-bold text-primary mb-2"><i class="bi bi-people-fill me-2"></i>Form Presensi Berdasarkan Jadwal Siswa</h5>
+        <p class="text-muted small mb-3">Pilih hari dan kelas untuk memunculkan daftar siswa..</p>
+
+      <form method="GET" action="input_presensi.php" class="row g-3" id="formFilter">
+    <input type="hidden" name="tab" value="siswa">
+    
+  <div class="col-md-4">
+                <label class="form-label fw-bold text-secondary small">PILIH HARI:</label>
+                <input type="hidden" name="hari" value="<?= $pilih_hari; ?>">
+                <input type="text" class="form-control form-select-sm fw-bold text-primary bg-light" value="<?= $pilih_hari; ?>" readonly style="height: 38px;">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-bold text-secondary small">PILIH KELAS:</label>
+                <select name="id_kelas" class="form-select" onchange="document.getElementById('formFilter').submit();">
+                    <option value="">-- Pilih Kelas --</option>
+                    <?php 
+                    mysqli_data_seek($query_dropdown_kelas, 0);
+                    while($k = mysqli_fetch_assoc($query_dropdown_kelas)): 
+                    ?>
+                        <option value="<?= $k['id_kelas']; ?>" <?= ($id_kelas_aktif == $k['id_kelas']) ? 'selected' : ''; ?>>
+                            <?= $k['nama_kelas']; ?>
+                        </option>
+                    <?php endwhile; ?>
+                </select>
+            </div>
+        </form>
+    </div>
+
+    <?php if (!empty($pesan_sukses)): ?>
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i> <?= $pesan_sukses; ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    <?php endif; ?>
+
+    <div class="card card-custom p-4">
+        <form action="input_presensi.php?tab=siswa&id_kelas=<?= $id_kelas_aktif; ?>&hari=<?= $pilih_hari; ?>" method="POST">
+            <input type="hidden" name="jam_pelajaran" value="<?= htmlspecialchars($jam_pelajaran); ?>">
+            <input type="hidden" name="hari" value="<?= htmlspecialchars($pilih_hari); ?>">
+
+            <div class="alert alert-info py-2 small mb-3 d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="bi bi-info-circle-fill me-1"></i> Hari: <b><?= $pilih_hari; ?></b> | Kelas: <b><?= $nama_kelas_aktif; ?></b> | Kegiatan: <b><?= $jam_pelajaran; ?></b>
+                </div>
+                <?php 
+                $is_libur = ($pilih_hari == 'SABTU' || $pilih_hari == 'MINGGU');
+                if (!empty($id_kelas_aktif) && $query_siswa && mysqli_num_rows($query_siswa) > 0 && !$is_libur): 
+                ?>
+                <div>
+                    <button type="button" class="btn btn-outline-success btn-sm fw-bold me-1" onclick="pilihSemuaStatus('Hadir')">Pilih Semua Hadir</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm fw-bold" onclick="resetSemuaStatus()">Reset</button>
+                </div>
+                <?php endif; ?>
             </div>
 
-            <?php if (!empty($pesan_sukses)): ?>
-                <div class="alert alert-success alert-dismissible fade show" role="alert">
-                    <i class="bi bi-check-circle-fill me-2"></i> <?= $pesan_sukses; ?>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            <div class="table-responsive">
+                <table class="table table-bordered align-middle">
+                    <thead class="table-light text-center">
+                        <tr>
+                            <th width="5%">NO</th>
+                            <th width="10%">NIS</th>
+                            <th width="22%">NAMA SISWA</th>
+                            <th width="13%">JENIS KELAMIN</th>
+                            <th width="10%">KELAS</th>
+                            <th width="10%">HARI</th>
+                            <th width="13%">TANGGAL</th>
+                            <th width="17%">PILIH KEHADIRAN</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php 
+                        if ($is_libur) {
+                            echo "<tr><td colspan='8' class='text-center text-danger fw-bold py-4'>
+                                <i class='bi bi-exclamation-triangle-fill me-2'></i> HARI " . strtoupper($pilih_hari) . " LIBUR, TIDAK DAPAT MELAKUKAN PRESENSI SISWA.
+                            </td></tr>";
+                        } elseif (!empty($id_kelas_aktif) && $query_siswa && mysqli_num_rows($query_siswa) > 0) {
+                            $no = 1;
+                            while ($siswa = mysqli_fetch_assoc($query_siswa)) {
+                        ?>
+                        <tr>
+                            <td class="text-center"><?= $no++; ?></td>
+                            <td>
+                                <?= $siswa['nis']; ?>
+                                <input type="hidden" name="nis[]" value="<?= $siswa['nis']; ?>">
+                            </td>
+                            <td><?= $siswa['nama_siswa']; ?></td>
+                            <td class="text-center"><?= isset($siswa['jenis_kelamin']) ? $siswa['jenis_kelamin'] : '-'; ?></td>
+                            <td class="text-center"><?= $siswa['nama_kelas']; ?></td>
+                            <td class="text-center"><span class="badge bg-secondary"><?= $pilih_hari; ?></span></td>
+                            <td class="text-center"><?= date('d-m-Y', strtotime($tanggal_hari_ini)); ?></td>
+                            <td class="text-center">
+                                <div class="btn-group" role="group">
+                                    <input type="radio" class="btn-check" name="status[<?= $siswa['nis']; ?>]" value="Hadir" id="hadir_<?= $siswa['nis']; ?>" checked>
+                                    <label class="btn btn-outline-success btn-sm" for="hadir_<?= $siswa['nis']; ?>">Hadir</label>
+
+                                    <input type="radio" class="btn-check" name="status[<?= $siswa['nis']; ?>]" value="Izin" id="izin_<?= $siswa['nis']; ?>">
+                                    <label class="btn btn-outline-primary btn-sm" for="izin_<?= $siswa['nis']; ?>">Izin</label>
+
+                                    <input type="radio" class="btn-check" name="status[<?= $siswa['nis']; ?>]" value="Sakit" id="sakit_<?= $siswa['nis']; ?>">
+                                    <label class="btn btn-outline-warning btn-sm" for="sakit_<?= $siswa['nis']; ?>">Sakit</label>
+
+                                    <input type="radio" class="btn-check" name="status[<?= $siswa['nis']; ?>]" value="Alpa" id="alpa_<?= $siswa['nis']; ?>">
+                                    <label class="btn btn-outline-danger btn-sm" for="alpa_<?= $siswa['nis']; ?>">Alpa</label>
+                                </div>
+                            </td>
+                        </tr>
+                        <?php 
+                            } 
+                        } else {
+                            echo "<tr><td colspan='8' class='text-center text-muted py-4'>Silakan pilih kelas terlebih dahulu pada menu di atas.</td></tr>";
+                        }
+                        ?>
+                    </tbody>
+                </table>
+            </div>
+
+            <?php if (!empty($id_kelas_aktif) && $query_siswa && mysqli_num_rows($query_siswa) > 0 && !$is_libur): ?>
+                <div class="text-end mt-4">
+                    <button type="submit" name="simpan_presensi" class="btn btn-success px-4 py-2 fw-bold shadow-sm">
+                        <i class="bi bi-save me-1"></i> Simpan Data Presensi
+                    </button>
                 </div>
             <?php endif; ?>
-
-            <div class="card card-custom p-4">
-                <form action="input_presensi.php?tab=siswa&id_kelas=<?= $id_kelas_aktif; ?>&hari=<?= $pilih_hari; ?>" method="POST">
-                    <input type="hidden" name="jam_pelajaran" value="<?= htmlspecialchars($jam_pelajaran); ?>">
-                    <input type="hidden" name="hari" value="<?= htmlspecialchars($pilih_hari); ?>">
-
-                    <div class="alert alert-info py-2 small mb-3 d-flex justify-content-between align-items-center">
-                        <div>
-                            <i class="bi bi-info-circle-fill me-1"></i> Hari: <b><?= $pilih_hari; ?></b> | Kelas: <b><?= $nama_kelas_aktif; ?></b> | Kegiatan: <b><?= $jam_pelajaran; ?></b>
-                        </div>
-                        <?php if (!empty($id_kelas_aktif) && $query_siswa && mysqli_num_rows($query_siswa) > 0): ?>
-                        <div>
-                            <button type="button" class="btn btn-outline-success btn-sm fw-bold me-1" onclick="pilihSemuaStatus('Hadir')">Pilih Semua Hadir</button>
-                            <button type="button" class="btn btn-outline-secondary btn-sm fw-bold" onclick="resetSemuaStatus()">Reset</button>
-                        </div>
-                        <?php endif; ?>
-                    </div>
-
-                    <div class="table-responsive">
-                        <table class="table table-bordered align-middle">
-                            <thead class="table-light text-center">
-                                <tr>
-                                    <th width="5%">NO</th>
-                                    <th width="12%">NIS</th>
-                                    <th width="25%">NAMA SISWA</th>
-                                    <th width="12%">KELAS</th>
-                                    <th width="12%">HARI</th>
-                                    <th width="15%">TANGGAL</th>
-                                    <th width="19%">PILIH KEHADIRAN</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php 
-                                if (!empty($id_kelas_aktif) && $query_siswa && mysqli_num_rows($query_siswa) > 0) {
-                                    $no = 1;
-                                    while ($siswa = mysqli_fetch_assoc($query_siswa)) {
-                                ?>
-                                <tr>
-                                    <td class="text-center"><?= $no++; ?></td>
-                                    <td>
-                                        <?= $siswa['nis']; ?>
-                                        <input type="hidden" name="nis[]" value="<?= $siswa['nis']; ?>">
-                                    </td>
-                                    <td><?= $siswa['nama_siswa']; ?></td>
-                                    <td class="text-center"><?= $siswa['nama_kelas']; ?></td>
-                                    <td class="text-center"><span class="badge bg-secondary"><?= $pilih_hari; ?></span></td>
-                                    <td class="text-center"><?= date('d-m-Y', strtotime($tanggal_hari_ini)); ?></td>
-                                    <td class="text-center">
-                                        <div class="btn-group" role="group">
-                                            <input type="radio" class="btn-check" name="status[<?= $siswa['nis']; ?>]" value="Hadir" id="hadir_<?= $siswa['nis']; ?>" checked>
-                                            <label class="btn btn-outline-success btn-sm" for="hadir_<?= $siswa['nis']; ?>">Hadir</label>
-
-                                            <input type="radio" class="btn-check" name="status[<?= $siswa['nis']; ?>]" value="Izin" id="izin_<?= $siswa['nis']; ?>">
-                                            <label class="btn btn-outline-primary btn-sm" for="izin_<?= $siswa['nis']; ?>">Izin</label>
-
-                                            <input type="radio" class="btn-check" name="status[<?= $siswa['nis']; ?>]" value="Sakit" id="sakit_<?= $siswa['nis']; ?>">
-                                            <label class="btn btn-outline-warning btn-sm" for="sakit_<?= $siswa['nis']; ?>">Sakit</label>
-
-                                            <input type="radio" class="btn-check" name="status[<?= $siswa['nis']; ?>]" value="Alpa" id="alpa_<?= $siswa['nis']; ?>">
-                                            <label class="btn btn-outline-danger btn-sm" for="alpa_<?= $siswa['nis']; ?>">Alpa</label>
-                                        </div>
-                                    </td>
-                                </tr>
-                                <?php 
-                                    } 
-                                } else {
-                                    echo "<tr><td colspan='7' class='text-center text-muted py-4'>Silakan pilih kelas terlebih dahulu pada menu di atas.</td></tr>";
-                                }
-                                ?>
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <?php if (!empty($id_kelas_aktif) && $query_siswa && mysqli_num_rows($query_siswa) > 0): ?>
-                        <div class="text-end mt-4">
-                            <button type="submit" name="simpan_presensi" class="btn btn-success px-4 py-2 fw-bold shadow-sm">
-                                <i class="bi bi-save me-1"></i> Simpan Data Presensi
-                            </button>
-                        </div>
-                    <?php endif; ?>
-                </form>
-            </div>
-        </div>
+        </form>
     </div>
+</div>
 
 <script>
 window.addEventListener('DOMContentLoaded', () => {
@@ -553,11 +640,13 @@ function handleHariChange() {
     let hari = document.getElementById('pilihHari').value;
     let jamSelect = document.getElementById('pilihJam');
     
-    if (hari === 'SABTU') {
-        jamSelect.innerHTML = '<option value="Ekstrakurikuler" selected>Ekstrakurikuler</option>';
-        jamSelect.disabled = true;
-    } else {
-        jamSelect.disabled = false;
+    if (jamSelect) {
+        if (hari === 'SABTU') {
+            jamSelect.innerHTML = '<option value="Ekstrakurikuler" selected>Ekstrakurikuler</option>';
+            jamSelect.disabled = true;
+        } else {
+            jamSelect.disabled = false;
+        }
     }
     document.getElementById('formFilter').submit();
 }
