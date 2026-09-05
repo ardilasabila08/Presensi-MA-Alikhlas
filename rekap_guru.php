@@ -30,8 +30,16 @@ if (isset($_GET['hapus_absen'])) {
         }
     }
 
-    mysqli_query($koneksi, "DELETE FROM tb_kehadiran_guru WHERE $pk_field = '$id_val'");
-    echo "<script>alert('Data kehadiran berhasil dihapus!'); window.location='admin.php?page=rekap_guru';</script>";
+   mysqli_query($koneksi, "DELETE FROM tb_kehadiran_guru WHERE $pk_field = '$id_val'");
+
+// Tangkap kembali parameter filter agar tetap terbawa setelah hapus
+$f_type = $_GET['filter_type'] ?? 'semua';
+$t_har  = $_GET['tanggal_harian'] ?? date('Y-m-d');
+$b_tah  = $_GET['bulan_tahun'] ?? date('Y-m');
+$t_mul  = $_GET['tgl_mulai'] ?? date('Y-m-01');
+$t_sel  = $_GET['tgl_selesai'] ?? date('Y-m-d');
+
+echo "<script>alert('Data kehadiran berhasil dihapus!'); window.location='admin.php?page=rekap_guru&filter_type=$f_type&tanggal_harian=$t_har&bulan_tahun=$b_tah&tgl_mulai=$t_mul&tgl_selesai=$t_sel&tampilkan=1';</script>";
 }
 
 // Proses Update Data Kehadiran Guru via Modal
