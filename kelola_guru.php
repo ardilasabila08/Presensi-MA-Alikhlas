@@ -1,11 +1,12 @@
 <?php
-// 1. Proses Tambah Petugas
+// 1. Proses Tambah Petugas/Guru ke tb_user
 if (isset($_POST['tambah_guru'])) {
     $username = mysqli_real_escape_string($koneksi, $_POST['username']);
     $password = mysqli_real_escape_string($koneksi, $_POST['password']);
     $nama_lengkap = mysqli_real_escape_string($koneksi, $_POST['nama_lengkap']);
+    $level = 'petugas'; // Diset sebagai petugas/guru agar bisa masuk ke input_presensi.php
 
-    $query = "INSERT INTO petugas (username, password, nama_lengkap) VALUES ('$username', '$password', '$nama_lengkap')";
+    $query = "INSERT INTO tb_user (username, password, nama_lengkap, level) VALUES ('$username', '$password', '$nama_lengkap', '$level')";
     if (mysqli_query($koneksi, $query)) {
         echo "<script>alert('Data berhasil ditambahkan!'); window.location='admin.php?page=kelola_guru';</script>";
     } else {
@@ -13,7 +14,7 @@ if (isset($_POST['tambah_guru'])) {
     }
 }
 
-// 2. Proses Edit Petugas
+// 2. Proses Edit Petugas/Guru
 if (isset($_POST['edit_guru'])) {
     $id = mysqli_real_escape_string($koneksi, $_POST['id']);
     $username = mysqli_real_escape_string($koneksi, $_POST['username']);
@@ -21,9 +22,9 @@ if (isset($_POST['edit_guru'])) {
     $password = mysqli_real_escape_string($koneksi, $_POST['password']);
 
     if (!empty($password)) {
-        $query_edit = "UPDATE petugas SET username='$username', nama_lengkap='$nama_lengkap', password='$password' WHERE id='$id'";
+        $query_edit = "UPDATE tb_user SET username='$username', nama_lengkap='$nama_lengkap', password='$password' WHERE id_user='$id'";
     } else {
-        $query_edit = "UPDATE petugas SET username='$username', nama_lengkap='$nama_lengkap' WHERE id='$id'";
+        $query_edit = "UPDATE tb_user SET username='$username', nama_lengkap='$nama_lengkap' WHERE id_user='$id'";
     }
 
     if (mysqli_query($koneksi, $query_edit)) {
@@ -33,10 +34,10 @@ if (isset($_POST['edit_guru'])) {
     }
 }
 
-// 3. Proses Hapus Petugas
+// 3. Proses Hapus Petugas/Guru
 if (isset($_GET['aksi']) && $_GET['aksi'] == 'hapus') {
     $id = mysqli_real_escape_string($koneksi, $_GET['id']);
-    mysqli_query($koneksi, "DELETE FROM petugas WHERE id = '$id'");
+    mysqli_query($koneksi, "DELETE FROM tb_user WHERE id_user = '$id'");
     echo "<script>alert('Data berhasil dihapus!'); window.location='admin.php?page=kelola_guru';</script>";
     exit;
 }
@@ -59,6 +60,12 @@ $modal_array = [];
                 <label class="form-label fw-semibold">Nama Lengkap & Gelar:</label>
                 <input type="text" name="nama_lengkap" class="form-control" placeholder="Contoh: Budi Sudarsono, S.Pd." required>
             </div>
+
+            <div class="col-md-4">
+                <label class="form-label fw-semibold">Password:</label>
+                <input type="password" name="password" class="form-control" placeholder="Masukkan password akun" required>
+            </div>
+
             <div class="col-12">
                 <button type="submit" name="tambah_guru" class="btn btn-success">
                     <i class="bi bi-save me-1"></i> Simpan Data Guru
@@ -80,9 +87,10 @@ $modal_array = [];
                 <tbody>
                     <?php
                     $no = 1;
-                    $data_guru = mysqli_query($koneksi, "SELECT * FROM petugas");
+                    // Mengambil data dari tb_user khusus level petugas/guru
+                    $data_guru = mysqli_query($koneksi, "SELECT * FROM tb_user WHERE level != 'admin'");
                     while ($row = mysqli_fetch_assoc($data_guru)) :
-                        $id_val = $row['id'];
+                        $id_val = $row['id_user'];
                     ?>
                     <tr>
                         <td><?= $no++; ?></td>
@@ -112,16 +120,16 @@ $modal_array = [];
 
 <!-- RENDER POP-UP MODAL MANUAL -->
 <?php foreach ($modal_array as $m): ?>
-<div class="custom-modal-backdrop" id="editModal<?= $m['id']; ?>" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1050; overflow-y: auto;">
+<div class="custom-modal-backdrop" id="editModal<?= $m['id_user']; ?>" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1050; overflow-y: auto;">
     <div class="modal-dialog" style="max-width: 500px; margin: 50px auto;">
         <div class="modal-content shadow-lg bg-white rounded border">
             <div class="modal-header bg-warning text-white px-4 py-3 d-flex justify-content-between align-items-center">
                 <h5 class="modal-title fw-bold m-0"><i class="bi bi-pencil-square me-2"></i>Edit Data Petugas</h5>
-                <button type="button" class="btn-close btn-close-manual" data-id="<?= $m['id']; ?>" style="background: transparent; border: 0; font-size: 1.5rem; cursor: pointer; color: white;">&times;</button>
+                <button type="button" class="btn-close btn-close-manual" data-id="<?= $m['id_user']; ?>" style="background: transparent; border: 0; font-size: 1.5rem; cursor: pointer; color: white;">&times;</button>
             </div>
             <form action="" method="POST">
                 <div class="modal-body p-4 text-start">
-                    <input type="hidden" name="id" value="<?= $m['id']; ?>">
+                    <input type="hidden" name="id" value="<?= $m['id_user']; ?>">
                     
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Username / NIP:</label>
@@ -138,7 +146,7 @@ $modal_array = [];
                     </div>
                 </div>
                 <div class="modal-footer px-4 py-3 bg-light border-top d-flex justify-content-end gap-2">
-                    <button type="button" class="btn btn-secondary btn-sm btn-close-manual" data-id="<?= $m['id']; ?>">Batal</button>
+                    <button type="button" class="btn btn-secondary btn-sm btn-close-manual" data-id="<?= $m['id_user']; ?>">Batal</button>
                     <button type="submit" name="edit_guru" class="btn btn-warning btn-sm text-white">Simpan Perubahan</button>
                 </div>
             </form>
