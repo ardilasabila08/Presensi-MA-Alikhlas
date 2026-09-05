@@ -69,6 +69,7 @@ if (empty($kelas)) {
                     <th width="5%">NO</th>
                     <th width="12%">NIS</th>
                     <th class="text-start">NAMA SISWA</th>
+                    <th width="12%">JENIS KELAMIN</th>
                     <th>KELAS</th>
                     <th>HARI</th>
                     <th>TANGGAL</th>
@@ -91,7 +92,7 @@ if (empty($kelas)) {
                 }
 
                 $q_rekap = mysqli_query($koneksi, "
-                    SELECT s.nis, s.nama_siswa, k.nama_kelas, p.tanggal,
+                    SELECT s.nis, s.nama_siswa, s.jenis_kelamin, k.nama_kelas, p.tanggal,
                     SUM(CASE WHEN p.status = 'Hadir' THEN 1 ELSE 0 END) as total_hadir,
                     SUM(CASE WHEN p.status = 'Izin' THEN 1 ELSE 0 END) as total_izin,
                     SUM(CASE WHEN p.status = 'Sakit' THEN 1 ELSE 0 END) as total_sakit,
@@ -100,7 +101,7 @@ if (empty($kelas)) {
                     JOIN tb_kelas k ON s.id_kelas = k.id_kelas
                     LEFT JOIN tb_presensi p ON s.nis = p.nis
                     WHERE s.id_kelas = '$id_kelas' $filter_sql
-                    GROUP BY s.nis, s.nama_siswa, k.nama_kelas, p.tanggal
+                    GROUP BY s.nis, s.nama_siswa, s.jenis_kelamin, k.nama_kelas, p.tanggal
                     ORDER BY p.tanggal ASC, s.nama_siswa ASC
                 ");
 
@@ -119,6 +120,7 @@ if (empty($kelas)) {
                     <td><?= $no++; ?></td>
                     <td><?= $r['nis']; ?></td>
                     <td class="text-start"><?= htmlspecialchars($r['nama_siswa']); ?></td>
+                    <td><?= isset($r['jenis_kelamin']) ? $r['jenis_kelamin'] : '-'; ?></td>
                     <td><?= $r['nama_kelas']; ?></td>
                     <td><?= !empty($r['tanggal']) ? $hari_indo : '-'; ?></td>
                     <td><?= !empty($r['tanggal']) ? date('d-m-Y', strtotime($r['tanggal'])) : '-'; ?></td>
@@ -130,7 +132,7 @@ if (empty($kelas)) {
                 <?php 
                     }
                 } else {
-                    echo "<tr><td colspan='10' class='text-center py-4'>Belum ada data presensi untuk periode ini.</td></tr>";
+                    echo "<tr><td colspan='11' class='text-center py-4'>Belum ada data presensi untuk periode ini.</td></tr>";
                 }
                 ?>
             </tbody>
