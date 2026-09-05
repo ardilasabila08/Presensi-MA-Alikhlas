@@ -16,9 +16,9 @@ $path = 'uploads/' . basename($file);
     <div class="container py-4">
         <!-- Tombol Kembali di Bagian Atas Pinggir -->
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <a href="javascript:window.close();" class="btn btn-light btn-sm fw-bold">
-                <i class="bi bi-arrow-left me-1"></i> Kembali ke Halaman
-            </a>
+           <button onclick="window.close();" class="btn btn-light btn-sm fw-bold">
+    <i class="bi bi-arrow-left me-1"></i> Kembali ke Halaman
+</button>
             <span class="text-muted small">File: <?= htmlspecialchars($file); ?></span>
         </div>
 
