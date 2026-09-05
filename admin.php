@@ -67,12 +67,32 @@ function getTotalPresensiPerJam($koneksi, $id_kelas, $status, $tanggal, $jam_pel
             background-color: #ffffff !important;
             box-shadow: 0 6px 15px rgba(0, 0, 0, 0.05);
         }
+        /* Supaya tampilan di HP tetap persis seperti di laptop, hanya diperkecil */
+    /* Supaya tampilan di HP tetap persis seperti di laptop, hanya diperkecil */
+/* Pengaturan responsive agar pas otomatis di HP */
+@media (max-width: 768px) {
+    .sidebar {
+        width: 260px;
+        left: -260px; /* Sidebar disembunyikan ke samping kiri secara default */
+        transition: 0.3s ease-in-out;
+    }
+    
+    /* Ketika tombol menu dipencet dan sidebar aktif */
+    .sidebar.show {
+        left: 0;
+    }
+
+    .main-content { 
+        margin-left: 0 !important; 
+        padding: 15px; 
+    }
+}
     </style>
 </head>
 <body>
 
     <!-- Sidebar -->
-    <div class="sidebar p-4 d-flex flex-column justify-content-between">
+    <div class="sidebar p-4 d-flex flex-column justify-content-between" id="sidebarMenu">
         <div>
             <div class="d-flex align-items-center gap-2 mb-4 px-2">
                 <i class="bi bi-mortarboard-fill fs-3 text-success"></i>
@@ -106,6 +126,11 @@ function getTotalPresensiPerJam($koneksi, $id_kelas, $status, $tanggal, $jam_pel
         </a>
     </li>
 </ul>
+<li class="nav-item mt-1" style="list-style: none;">
+    <a class="nav-link <?= $page == 'jadwal' ? 'active' : ''; ?>" href="admin.php?page=jadwal">
+        <i class="bi bi-calendar-check me-2"></i> Kelola Jadwal
+    </a>
+</li>
             <div class="text-uppercase small fw-bold text-muted px-2 mb-2">Master Data</div>
             <ul class="nav flex-column">
                 <li class="nav-item">
@@ -134,6 +159,11 @@ function getTotalPresensiPerJam($koneksi, $id_kelas, $status, $tanggal, $jam_pel
 
     <!-- Main Content -->
     <div class="main-content">
+    <!-- Tombol Menu Navigasi Manual -->
+<button class="btn btn-success d-md-none mb-3" type="button" id="btnToggleNav">
+    <i class="bi bi-list"></i> Menu Navigasi
+</button>
+    </button>
         <div class="card card-custom p-3 mb-4 d-flex flex-row justify-content-between align-items-center">
             <div>
                 <h4 class="fw-bold mb-0 text-success">Panel Admin E-Presensi</h4>
@@ -143,6 +173,36 @@ function getTotalPresensiPerJam($koneksi, $id_kelas, $status, $tanggal, $jam_pel
                 <span class="fw-semibold text-secondary"><i class="bi bi-person-circle me-1"></i> <?= htmlspecialchars($nama_admin); ?> (Admin)</span>
             </div>
         </div>
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+      const btnToggle = document.getElementById('btnToggleNav');
+      const sidebarMenu = document.getElementById('sidebarMenu');
+
+      if (btnToggle && sidebarMenu) {
+          // 1. Saat tombol Menu Navigasi dipencet
+          btnToggle.addEventListener('click', function(e) {
+              e.stopPropagation();
+              // Membuka atau menutup sidebar secara manual lewat class 'show'
+              sidebarMenu.classList.toggle('show');
+          });
+
+          // 2. Saat salah satu menu di dalam sidebar diklik, sidebar langsung menutup otomatis
+          const navLinks = sidebarMenu.querySelectorAll('.nav-link');
+          navLinks.forEach(function(link) {
+              link.addEventListener('click', function() {
+                  sidebarMenu.classList.remove('show');
+              });
+          });
+
+          // 3. Menutup sidebar jika pengguna mengklik area di luar sidebar
+          document.addEventListener('click', function(event) {
+              if (!sidebarMenu.contains(event.target) && !btnToggle.contains(event.target)) {
+                  sidebarMenu.classList.remove('show');
+              }
+          });
+      }
+  });
+</script>
 <?php
 $page = isset($_GET['page']) ? $_GET['page'] : 'dashboard';
 
@@ -157,6 +217,10 @@ if ($page == 'rekap_guru') {
 }
 if ($page == 'kelola_guru') {
     include 'kelola_guru.php';
+    exit;
+}
+if ($page == 'jadwal') {
+    include 'jadwal.php';
     exit;
 }
 if ($page == 'input_presensi') {
@@ -427,20 +491,21 @@ $hari_ini = getNamaHari($tanggal);
 
                 <div class="table-responsive">
                     <table class="table table-hover align-middle text-center">
-                        <thead class="table-light">
-                            <tr>
-                                <th width="5%">NO</th>
-                                <th width="12%">NIS</th>
-                                <th class="text-start">NAMA SISWA</th>
-                                <th>KELAS</th>
-                                <th>HARI</th>
-                                <th>TANGGAL</th>
-                                <th class="bg-success text-white">HADIR</th>
-                                <th class="bg-warning text-dark">IZIN</th>
-                                <th class="bg-info text-dark">SAKIT</th>
-                                <th class="bg-danger text-white">ALPA</th>
-                            </tr>
-                        </thead>
+                       <thead class="table-light">
+        <tr>
+            <th width="5%">NO</th>
+            <th width="12%">NIS</th>
+            <th class="text-start">NAMA SISWA</th>
+            <th width="12%">JENIS KELAMIN</th>
+            <th>KELAS</th>
+            <th>HARI</th>
+            <th>TANGGAL</th>
+            <th class="bg-success text-white">HADIR</th>
+            <th class="bg-warning text-dark">IZIN</th>
+            <th class="bg-info text-dark">SAKIT</th>
+            <th class="bg-danger text-white">ALPA</th>
+        </tr>
+    </thead>
                         <tbody>
                             <?php
 $filter = isset($_GET['filter']) ? $_GET['filter'] : 'semua';
@@ -457,7 +522,7 @@ if ($filter == 'hari_ini') {
     $filter_sql = " AND MONTH(p.tanggal) = MONTH(CURDATE()) AND YEAR(p.tanggal) = YEAR(CURDATE())";
 }
 $q_rekap = mysqli_query($koneksi, "
-    SELECT s.nis, s.nama_siswa, k.nama_kelas, p.tanggal,
+    SELECT s.nis, s.nama_siswa, s.jenis_kelamin, k.nama_kelas, p.tanggal,
     SUM(CASE WHEN p.status = 'Hadir' THEN 1 ELSE 0 END) as total_hadir,
     SUM(CASE WHEN p.status = 'Izin' THEN 1 ELSE 0 END) as total_izin,
     SUM(CASE WHEN p.status = 'Sakit' THEN 1 ELSE 0 END) as total_sakit,
@@ -466,7 +531,7 @@ $q_rekap = mysqli_query($koneksi, "
     JOIN tb_kelas k ON s.id_kelas = k.id_kelas
     LEFT JOIN tb_presensi p ON s.nis = p.nis
     WHERE s.id_kelas = '$id_kelas_pilih' $filter_sql
-    GROUP BY s.nis, s.nama_siswa, k.nama_kelas, p.tanggal
+    GROUP BY s.nis, s.nama_siswa, s.jenis_kelamin, k.nama_kelas, p.tanggal
     ORDER BY p.tanggal ASC, s.nama_siswa ASC
 ");
 
@@ -486,9 +551,10 @@ $q_rekap = mysqli_query($koneksi, "
                                 <td><?= $no++; ?></td>
                                 <td class="font-monospace"><?= $r['nis']; ?></td>
                                 <td class="text-start fw-bold"><?= htmlspecialchars($r['nama_siswa']); ?></td>
-                                <td><span class="badge bg-light text-dark border"><?= $r['nama_kelas']; ?></span></td>
-                                <td><?= $nama_hari; ?></td>
-                                <td><?= date('d-m-Y', strtotime($tanggal_presensi)); ?></td>
+        <td><?= isset($r['jenis_kelamin']) ? $r['jenis_kelamin'] : '-'; ?></td>
+        <td><span class="badge bg-light text-dark border"><?= $r['nama_kelas']; ?></span></td>
+        <td><?= $nama_hari; ?></td>
+        <td><?= date('d-m-Y', strtotime($tanggal_presensi)); ?></td>
                                 <td><span class="badge bg-success px-3 py-2"><?= $r['total_hadir']; ?></span></td>
                                 <td><span class="badge bg-warning text-dark px-3 py-2"><?= $r['total_izin']; ?></span></td>
                                 <td><span class="badge bg-info text-dark px-3 py-2"><?= $r['total_sakit']; ?></span></td>
@@ -497,7 +563,7 @@ $q_rekap = mysqli_query($koneksi, "
                             <?php 
                                 }
                             } else {
-                                echo "<tr><td colspan='10' class='text-center text-muted py-4'>Belum ada data siswa untuk kelas ini.</td></tr>";
+                                echo "<tr><td colspan='11' class='text-center text-muted py-4'>Belum ada data siswa untuk kelas ini.</td></tr>";
                             }
                             ?>
                         </tbody>
@@ -558,34 +624,35 @@ $q_rekap = mysqli_query($koneksi, "
             <div class="table-responsive">
                 <table class="table table-hover align-middle">
                     <thead class="table-light">
-                        <tr>
-                            <th width="5%">NO</th>
-                            <th>NIS</th>
-                            <th>NAMA SISWA</th>
-                            <th>KELAS</th>
-                            <th class="text-center" width="15%">AKSI</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php
-                        $no_s = 1;
-                        if($q_ds && mysqli_num_rows($q_ds) > 0) {
-                            while($ds = mysqli_fetch_assoc($q_ds)) {
-                        ?>
-                        <tr>
-                            <td><?= $no_s++; ?></td>
-                            <td class="font-monospace"><?= $ds['nis']; ?></td>
-                            <td class="fw-bold"><?= htmlspecialchars($ds['nama_siswa']); ?></td>
-                            <td><span class="badge bg-light text-dark border"><?= isset($ds['nama_kelas']) ? $ds['nama_kelas'] : '-'; ?></span></td>
-                            <td class="text-center">
-                                <a href="edit_siswa.php?nis=<?= $ds['nis']; ?>" class="btn btn-warning btn-sm text-white"><i class="bi bi-pencil-square"></i></a>
-                                <a href="hapus_siswa.php?nis=<?= $ds['nis']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Yakin ingin menghapus data siswa ini?')"><i class="bi bi-trash"></i></a>
-                            </td>
-                        </tr>
+        <tr>
+            <th width="5%">NO</th>
+            <th width="15%">NIS</th>
+            <th class="text-start">NAMA SISWA</th>
+            <th width="15%">JENIS KELAMIN</th>
+            <th>KELAS</th>
+            <th class="text-center" width="15%">AKSI</th>
+        </tr>
+</thead>
+<tbody>
+<?php 
+$no = 1;
+if($q_ds && mysqli_num_rows($q_ds) > 0) {
+    while($ds = mysqli_fetch_assoc($q_ds)) {
+?>
+    <td><?= $no++; ?></td>
+    <td class="font-monospace"><?= htmlspecialchars($ds['nis']); ?></td>
+    <td class="text-start fw-bold"><?= htmlspecialchars($ds['nama_siswa']); ?></td>
+    <td><?= isset($ds['jenis_kelamin']) ? $ds['jenis_kelamin'] : '-'; ?></td>
+    <td><?= htmlspecialchars($ds['nama_kelas']); ?></td>
+    <td class="text-center">
+        <a href="edit_siswa.php?nis=<?= $ds['nis']; ?>" class="btn btn-warning btn-sm"><i class="bi bi-pencil-square"></i></a>
+        <a href="hapus_siswa.php?nis=<?= $ds['nis']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Yakin ingin menghapus?')"><i class="bi bi-trash"></i></a>
+    </td>
+</tr>
                         <?php
                             }
                         } else {
-                            echo "<tr><td colspan='5' class='text-center text-muted py-4'>Belum ada data siswa yang sesuai.</td></tr>";
+                            echo "<tr><td colspan='6' class='text-center text-muted py-4'>Belum ada data siswa yang sesuai.</td></tr>";
                         }
                         ?>
                     </tbody>
